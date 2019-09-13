@@ -14,10 +14,10 @@ class Topology:
     '''
 
     def __init__(self):
-        self.graph = nx.Graph()   # The graph representing the topology
-        self.pairs_of_hosts = []  # Holds all combinations of hosts (size 2 pairs)        
-        self.switches = {}        # A dict of all switches in this topology (key: id , value: SwitchClass )
-        self.hosts = {}           # A dict of all hosts in this topology (key: id , value: HostClass )
+        self.graph = nx.DiGraph()   # The directed graph representing the topology
+        self.pairs_of_hosts = []    # Holds all combinations of hosts (size 2 pairs)        
+        self.switches = {}          # A dict of all switches in this topology (key: id , value: SwitchClass )
+        self.hosts = {}             # A dict of all hosts in this topology (key: id , value: HostClass )
     
     # Parses Topology from a json object
     def parse_topology_from_json(self, data):
@@ -57,7 +57,7 @@ class Topology:
 
                     
         # Find the links of the graph        
-        # [NOTE : WE USE UNDIRECTED GRAPH ]
+        # [NOTE : WE USE A DIRECTED GRAPH ]
         if 'link' in topology:
             for link in topology['link']:
 
@@ -78,31 +78,24 @@ class Topology:
                         }
                     ) 
                 
-                # Add an edge in our graph
-                self.graph.add_edge(src_id, dst_id)
+                # Add an edges in our graph
+                self.graph.add_edge(src_id, dst_id, weight=1)
+                self.graph.add_edge(dst_id, src_id, weight=1)
 
 
     def get_host_pairs(self):
         '''
             Return a list containing all combinations of size 2 tuples of hosts :
                 (host_id1,host_id2) where host_id1 , host_id2: self.hosts.keys()
-            Also (x, y) and (y, x) is treated as the same so (x, y) is added to the list.
+            Also (x, y) and (y, x) is treated as the different edges because we suppose 
+            that switches are using full duplex ethernet cables so each direction has it's own bandwith.
         '''
 
         # Lazy load pairs of hosts
-        if len(self.pairs_of_hosts) == 0:                        
-            created_pairs = set()
+        if len(self.pairs_of_hosts) == 0:                                    
             for h1 in self.hosts.keys():
-                for h2 in self.hosts.keys():                
-                    if h1 == h2: continue
-                    # Don't keep duplicate paths ( use the sum of h1 and h2 as a hascode function)
-                    # That way (h1, h2) and (h2, h1) will have the same hashcode
-                    hashCode = sum(bytearray(h1)) + sum(bytearray(h2))
-                    if hashCode in created_pairs:
-                        continue
-                    else:
-                        created_pairs.add(hashCode)
-                        self.pairs_of_hosts.append( (h1, h2) )        
+                for h2 in self.hosts.keys():                                    
+                    self.pairs_of_hosts.append( (h1, h2) )        
 
         return self.pairs_of_hosts
 
@@ -110,19 +103,51 @@ class Topology:
     def get_dijkstra_paths_for_host_pairs(self):
         '''
             Return the dijkstra paths (sortest paths) for each 2 hosts connected in this topology.
+
+            Parameters:
+                weight_function: A function taking 3 arguments as a paramenter ( node_u, node_v, edge_attributes ) 
+                    and returning the cost of the edge connecting node_u with node_v. The default argument is a lambda 
+                    that returns 1 for every edge.
         '''
 
         # Find dijkstra path for each host pair        
         dijkstra_paths = []
-        for pair in self.get_host_pairs():
-            dijkstra_paths.append(nx.dijkstra_path(self.graph, pair[0], pair[1]))
+        for pair in self.get_host_pairs():            
+            dijkstra_paths.append(nx.dijkstra_path(self.graph, pair[0], pair[1], weight=lambda u,v,d: d['weight']))
 
-        if info_prints:
-            print '\n[INFO] Dijkstra paths:'
-            for path in dijkstra_paths:
-                print path
+        dijkstra_paths = filter(lambda p: len(p) > 1, dijkstra_paths)
+
+        # if info_prints:
+        #     print '\n[INFO] Dijkstra paths:'
+        #     for path in dijkstra_paths:
+        #         print path
 
         return dijkstra_paths
+
+
+    def update_graph_weights(self, switch_to_port_to_weight):
+        '''
+            Updates the weights of the network graph using the parameter switch_to_port_to_weight.
+
+            Parameters: 
+                switch_to_port_to_weight: A depth-2 dictionary formated like 
+                    { 
+                        switch_id: {
+                            port_number: weight,
+                            ...
+                        }, 
+                        ...  
+                    }                     
+        '''
+
+        for switch in self.switches.values():
+            for connection in switch.connections:                
+                # Adding an edge in the graph that already exists updates the edge data
+                self.graph.add_edge(
+                    switch.node_id,          # Get u node from switch
+                    connection['conn_id'],   # Get v node from switch's connection
+                    weight=switch_to_port_to_weight[switch.node_id][connection['port_num']]  # Get wight from the parameter using switch and the connection's port_number
+                )
 
 
 

@@ -48,4 +48,4 @@ class XmlCreator:
                 priority = priority, 
                 output_port = output_port,
                 mac_dst = mac_dst
-            )
+            )    

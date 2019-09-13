@@ -2,7 +2,7 @@
 
 class Switch:
     '''
-        This class Represents a Switch.
+        This class Represents a Switch located in a topology.
         A Switch contais :            
             - node_id
             - connections
