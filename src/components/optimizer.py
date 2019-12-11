@@ -30,7 +30,7 @@ class NetworkOptimizer:
             print '  Edges: ', self.topology.graph.number_of_edges()
     
 
-    def load_balancer_demon(self):
+    def optimizer_daemon(self):
         '''
             The load balancer runs for ever ( till you kill it with CTR+Z ) using packets_count as weighs for 
             networks edges between switches and optimizing packet forarding with dijkstra paths
@@ -56,7 +56,7 @@ class NetworkOptimizer:
 
 
         #                       ---
-        #  Phase2: Run the monitor deamon / flow deamon
+        #  Phase2: Run the monitor daemon / flow daemon
         #                       ---    
 
         # Initialize a signlar handler for CRT Z signal
@@ -84,7 +84,7 @@ class NetworkOptimizer:
             paths for sortest path's calculation. That way each host 
             connects with another host using the dijkstra path.
 
-            NOTE : Its the load_balancer_demon "Phase1". 
+            NOTE : Its the optimizer_daemon "Phase1". 
         '''                        
 
         # Create the optimized flows using dijkstra paths.
@@ -231,7 +231,7 @@ class NetworkOptimizer:
         # Holds a depth-2 dictionary : { switch_id: {prot_number : packet_count , ...}, ...  }
         weights = {key.node_id : { conn['port_num']: 0 for conn in key.connections } for key in self.topology.switches.values()} 
 
-        # Get the packet_count for each port in each switch from the flows created in phase1 of 'load_balancer_demon'
+        # Get the packet_count for each port in each switch from the flows created in phase1 of 'optimizer_daemon'
         for switch_id in flows.keys():
             for port_num, macs_set in flows[switch_id].items():
                 for mac in macs_set:
@@ -250,7 +250,7 @@ class NetworkOptimizer:
                     packet_count += self.flow_manager.get_flow_packet_count(switch_id, mac, port_num)
 
                 # If the packet count is the same as before then assing value 1 to weight (so dijkstra will keep executing in the same way as before)
-                if (packet_count == weights[switch_id][port_num]):
+                if (packet_count <= weights[switch_id][port_num]):
                     weights[switch_id][port_num] = 1
                 else:
                     weights[switch_id][port_num] = packet_count - weights[switch_id][port_num]

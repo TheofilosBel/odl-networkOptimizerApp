@@ -13,7 +13,7 @@ if __name__ == '__main__':
     # the script will catch it and raise a SystemExit exception, terminating the script 
     # and returning the network in it's initila state
     try :
-        n_opt.load_balancer_demon()
+        n_opt.optimizer_daemon()
     except SystemExit:
         print '\nExiting...'
 
